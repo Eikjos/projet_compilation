@@ -1,1 +1,1 @@
-"# projet_compilation" 
+Firstly, run the command make for compile the project
