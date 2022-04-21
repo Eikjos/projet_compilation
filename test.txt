@@ -1,0 +1,14 @@
+\begin{algo}{puissance}{a, b}
+\SET{p}{1}
+\DOFORI{k}{1}{b}
+\SET{p}{a}
+\OD
+\IF{b == 0}
+\SET{p}{2}
+\ELSE
+\SET{p}{3}
+\DOWHILE{p < 3}
+\SET{p}{p-1}
+\OD
+\RETURN{p}
+\end{algo}
