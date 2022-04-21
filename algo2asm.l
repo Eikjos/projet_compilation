@@ -19,6 +19,17 @@ ID [a-zA-Z]+[[:digit:]a-zA-Z]*
 \\ELSE {return ELSE;}
 \\DOWHILE {return WHILE;}
 \\RETURN {return RETURN;}
+\\NEG {return NOT;}
+\\LANG {return AND;}
+\\LOR {return OR;}
+\\NEG {return NEQ;}
+= {return EQ;}
+< {return LESSER;}
+> {return GREATER;}
+\\LEQ {return LESSEREQ;}
+\\GEQ {return GREATEREQ;}
+\\TIMES {return TIMES;}
+\\MOD {return MOD;}
 true {return TRUE;}
 false {return FALSE;}
 {ID} {yylval.id = strcpy_perso(yytext); return ID}
