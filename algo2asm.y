@@ -39,6 +39,14 @@
 
 %start function
 %%
+
+function : 
+    BEGIN ID params lignes END {
+        symbol_table* s = new_symbol_table($2);
+        if (s == NULL) {
+          exit(EXIT_FAILURE);
+        }
+    }
 %%
 
 
