@@ -11,6 +11,8 @@
     void fail_with(const char *format, ...);
     static unsigned int new_label_number();
     static void create_label(char *buf, size_t buf_size, const char *format, ...);
+    int nb_params = 0;
+    int nb_local = 0;
 %}
 
 %union{
@@ -42,11 +44,30 @@
 
 function : 
     BEGIN ID params lignes END {
+        symbol_table* s = search_symbol_table($2);
+        if (s != NULL) {
+          fprintf(stderr, "la fonction est déjà définie\n");
+        }
         symbol_table* s = new_symbol_table($2);
         if (s == NULL) {
           exit(EXIT_FAILURE);
         }
+        s->scope = FUNCTION;
+        s->nParams = nb_params;
+        s->nLocalVariables = nb_local;
+        printf("nbParams : %d - nbLocal : %d\n, nb_params, nb_local");
     }
+
+params : 
+  ID | ID, params {
+    ++nb_params;
+    symbol_table* s = search_symbol_table($1, LOCAL_VARIABLE);
+    if (s != NULL) {
+      fprintf(stderr, "la variable is defined");
+    }
+    s = new_symbol_table($1);
+  }
+lignes : 
 %%
 
 

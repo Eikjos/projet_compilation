@@ -10,7 +10,7 @@
 typedef enum {
     INT_T,
     BOOL_T,
-    FUNCTION,
+    FUNCTION_T,
     ERR_TYPAGE,
     ERR_DIV_0
 } type;
