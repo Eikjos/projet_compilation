@@ -4,10 +4,11 @@
 
 static symbol_table *table = NULL;
 
-symbol_table *search_symbol_table(const char *name, symbol_class scope) {
+
+symbol_table *search_symbol_table(const char *name) {
   symbol_table *ste = table;
   for ( ste = table;
-        ste!=NULL && strcmp(ste->name, name) && ste->scope != scope;
+        ste!=NULL && strcmp(ste->name, name);
         ste = ste->next)
     ;
   return ste;

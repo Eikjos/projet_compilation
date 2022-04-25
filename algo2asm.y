@@ -11,8 +11,7 @@
     void fail_with(const char *format, ...);
     static unsigned int new_label_number();
     static void create_label(char *buf, size_t buf_size, const char *format, ...);
-    int nb_params = 0;
-    int nb_local = 0;
+    char* name;
 %}
 
 %union{
@@ -32,6 +31,7 @@
 %token TIMES MOD
 
 %type<stype> expr
+%type<int> params
 %left OR AND
 %right NOT
 %left EQ NEQ LESSER GREATER LESSEREQ GREATEREQ
@@ -47,27 +47,154 @@ function :
         symbol_table* s = search_symbol_table($2);
         if (s != NULL) {
           fprintf(stderr, "la fonction est déjà définie\n");
+          exit(EXIT_FAILURE);
         }
         symbol_table* s = new_symbol_table($2);
+        name = s->name;
         if (s == NULL) {
           exit(EXIT_FAILURE);
         }
         s->scope = FUNCTION;
-        s->nParams = nb_params;
-        s->nLocalVariables = nb_local;
+        s->nParams = $3; 
         printf("nbParams : %d - nbLocal : %d\n, nb_params, nb_local");
     }
 
 params : 
-  ID | ID, params {
-    ++nb_params;
-    symbol_table* s = search_symbol_table($1, LOCAL_VARIABLE);
+  ID | ID ',' params {
+    symbol_table* s = search_symbol_table($1);
     if (s != NULL) {
       fprintf(stderr, "la variable is defined");
+      exit(EXIT_FAILURE);
     }
     s = new_symbol_table($1);
+    s->scope = GLOBAL_VARIABLE
   }
+
 lignes : 
+    SET couples {
+    }
+    | FOR ID ID ID lignes FIN_BOUCLE lignes {
+
+    }
+    | FOR ID expr expr lignes FIN_BOUCLE lignes {
+
+    }
+    | FOR ID ID expr lignes FIN_BOUCLE lignes{
+
+    }
+    | FOR ID expr ID lignes FIN_BOUCLE lignes {
+
+    }
+    | IF expr lignes FIN_IF lignes {
+
+    }
+    | IF expr lignes ELSE lignes FIN_SI {
+
+    }
+    | WHILE expr lignes FIN_BOUCLE {
+
+    }
+    | RETURN expr {
+      
+    }
+
+expr {
+  NUMBER {
+
+  }
+  | TRUE {
+
+  }
+  | FALSE {
+
+  }
+  | expr '+' expr {
+
+  }
+  | expr TIMES expr {
+
+  }
+  | expr DIV expr {
+
+  }
+  | expr '-' expr {
+
+  }
+  | expr MOD expr {
+
+  }
+  | expr EQ expr {
+
+  }
+  | expr LE expr {
+
+  }
+  | expr GRE expr {
+
+  }
+  | expr LEQ expr {
+
+  }
+  | expr GEQ expr {
+
+  }
+  | NOT expr {
+
+  }
+  | expr AND expr {
+
+  }
+  | expr OR expr {
+
+  }
+}
+
+couples: {
+  ID couples expr {
+    symbol_table* s;
+    s = search_symbol_tablebyNameAndScope($1);
+    if (s != NULL && s->scope ) {
+        if (s->desc[0] != $3) {
+          fprintf(stderr, "impossible de convertir\n");
+          exit(EXIT_FAILURE);
+        }
+    } else {
+      s = new_symbol_table($1);
+      s->LOCAL_VARIABLE;
+      if ($3 == INT_T || $3 == BOOL_T) {
+        
+      } else {
+        fprintf(stderr, "il y a une erreur\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+  }
+  | ID couples ID {
+    symbol_table* s;
+    symbol_table* d;
+    s = search_symbol_table($3);
+    if (s != NULL) {
+        d = search_symbol_table($1);
+        if (d != NULL) {
+          if (s->desc[0] != d->desc[0]) {
+            fprintf(stderr, "impossible de convertir\n");
+            exit(EXIT_FAILURE);
+          }
+        } else {
+          d = new_symbol_table($1);
+          d->scope = LOCAL_VARIABLE;
+        }
+    } else {
+      fprintf(stderr, "undefined\n");
+    }
+  }
+  | ID expr {
+
+  }
+  | ID ID {
+
+  }
+}
 %%
 
 

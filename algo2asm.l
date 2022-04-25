@@ -24,17 +24,19 @@ ID [a-zA-Z]+[[:digit:]a-zA-Z]*
 \\LOR {return OR;}
 \\NEG {return NEQ;}
 = {return EQ;}
-< {return LESSER;}
-> {return GREATER;}
-\\LEQ {return LESSEREQ;}
-\\GEQ {return GREATEREQ;}
+< {return LE;}
+> {return GRE;}
+\\LEQ {return LEQ;}
+\\GEQ {return GEQ;}
 \\TIMES {return TIMES;}
 \\MOD {return MOD;}
+\\DIV {return DIV;}
 true {return TRUE;}
 false {return FALSE;}
 {ID} {yylval.id = strcpy_perso(yytext); return ID}
 \{
 \}
+,
 [[:blank:]]
 .|\n {printf("%c", yytext[0]);}
 %%
