@@ -1,14 +1,16 @@
 %{
     #include <limits.h>
     #include <string.h>
+    #include "algo2asm.tab.h"
     void string_to_int(int *r, const char *s);
     char* strcpy_perso(const char* text);
 %}
-NUMBER [[:digit:]]+
 ID [a-zA-Z]+[[:digit:]a-zA-Z]*
 %option noyywrap
 %%
-{NUMBER} {string_to_int(&yylval.integer, yytext); return NUMBER;}
+[[:digit:]]+ {string_to_int(&yylval.integer, yytext); return NUMBER;}
+\\SET {return SET;}
+{ID} {yylval.id = strcpy_perso(yytext); return ID;}
 \\begin\{algo\} {return DEBUT;}
 \\end\{algo\} {return FIN;}
 \\SET {return SET;}
@@ -24,8 +26,8 @@ ID [a-zA-Z]+[[:digit:]a-zA-Z]*
 \\LOR {return OR;}
 \\NEG {return NEQ;}
 = {return EQ;}
-< {return LE;}
-> {return GRE;}
+\< {return LE;}
+\> {return GRE;}
 \\LEQ {return LEQ;}
 \\GEQ {return GEQ;}
 \\TIMES {return TIMES;}
@@ -33,7 +35,6 @@ ID [a-zA-Z]+[[:digit:]a-zA-Z]*
 \\DIV {return DIV;}
 true {return TRUE;}
 false {return FALSE;}
-{ID} {yylval.id = strcpy_perso(yytext); return ID}
 \{
 \}
 ,
@@ -65,6 +66,3 @@ char* strcpy_perso(const char*text) {
 	return name;
 }
 
-int main(void) {
-  yylex();
-}

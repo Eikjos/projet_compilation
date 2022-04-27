@@ -4,7 +4,7 @@
 \SET{p}{a}
 \OD
 \IF{b == 0}
-\SET{p}{2}
+\SET{p, a, b}{2, 3, 4}
 \ELSE
 \SET{p}{3}
 \DOWHILE{p < 3}
