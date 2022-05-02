@@ -1,10 +1,19 @@
 #include <stdlib.h>
 #include <string.h>
-#include "types.h"
+#include <stdio.h>
+#include <stdarg.h>
+#include "stypes.h"
 
 static symbol_table *table = NULL;
 
-
+void fail_with(const char *format, ...) {
+  va_list ap;
+  va_start(ap, format);
+  vfprintf(stderr, format, ap);
+  va_end(ap);
+  exit(EXIT_FAILURE);
+}
+  
 symbol_table *search_symbol_table(const char *name) {
   symbol_table *ste = table;
   for ( ste = table;

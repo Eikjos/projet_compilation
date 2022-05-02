@@ -1,9 +1,10 @@
-#ifndef __TYPE__
-#define __TYPE__
+#ifndef _STYPE_H
+#define _STYPE_H
 
 #include <stdbool.h>
 #include <stdlib.h>
 #include <errno.h>
+#include "stypes.h"
 
 #define MAX_PARAMS 10
 
@@ -11,9 +12,9 @@ typedef enum {
     INT_T,
     BOOL_T,
     FUNCTION_T,
-    ERR_TYPAGE,
-    ERR_DIV_0
-} type;
+    ERR_T,
+    ERR_0,
+} stypes;
 
 typedef enum { GLOBAL_VARIABLE, LOCAL_VARIABLE, FUNCTION } symbol_class;
 
@@ -29,8 +30,7 @@ typedef struct symbol_table {
   // Variable: type is in desc[0]
   // Function: desc[0] is the return type,
   //           desc[i] the type of the ith parameter
-  type desc[MAX_PARAMS+1];
+  stypes desc[MAX_PARAMS+1];
   struct symbol_table *next;
 } symbol_table;
-
 #endif

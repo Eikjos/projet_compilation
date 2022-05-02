@@ -1,6 +1,8 @@
 %{
     #include <limits.h>
     #include <string.h>
+    #include <stdarg.h>
+    #include "stypes.h"
     #include "algo2asm.tab.h"
     void string_to_int(int *r, const char *s);
     char* strcpy_perso(const char* text);

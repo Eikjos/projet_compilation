@@ -4,31 +4,43 @@
     #include <stdio.h>
     #include <stdarg.h>
     #include <limits.h>
-    #include "algo2asm.tab.h"
-    #include "types.h"
     #include "stable.h"
+    #include "stypes.h"
     int yylex(void);
     void yyerror(char const *);
     #define STACK_CAPACITY 50
     static int values[STACK_CAPACITY];
     static char* ids[STACK_CAPACITY];
+    static int stack[STACK_CAPACITY];
+    int stack_size = 0;
     int size_ids = 0;
     int size_values = 0;
     int nb_params = 0;
-    void fail_with(const char *format, ...) {
+    static unsigned int new_label_number() {
+      static unsigned int current_label_number = 0u;
+      if ( current_label_number == UINT_MAX ) {
+        fail_with("Error: maximum label number reached!\n");
+      }
+      return current_label_number++;
+    }
+
+    static void create_label(char *buf, size_t buf_size, const char *format, ...) {
       va_list ap;
       va_start(ap, format);
-      vfprintf(stderr, format, ap);
+      if (vsnprintf(buf, buf_size, format, ap) >= buf_size ) {
+        va_end(ap);
+        fail_with("Error in label generation: size of label exceeds maximum size!\n");
+      }
       va_end(ap);
-      exit(EXIT_FAILURE);
     }
-    static unsigned int new_label_number();
-    static void create_label(char *buf, size_t buf_size, const char *format, ...);
 %}
+
 %union {
   int integer;
+  stypes t;
   char* id;
 }
+
 %token<integer>NUMBER
 %token SET
 %token<id>ID
@@ -40,7 +52,7 @@
 %token TRUE FALSE
 %token RETURN 
 
-%type<stype> expr
+%type<t> expr
 %left OR AND
 %right NOT
 %left EQ NEQ LE GRE LEQ GEQ
@@ -162,7 +174,7 @@ NUMBER {
 	 $$ = BOOL_T;
 }
 | ID {
-  symbol_table_entry* s= search_symbol_table($1);
+  symbol_table* s= search_symbol_table($1);
 	if (s == NULL) {
 		fprintf(stderr, "symbol not found\n");
 	} else {
@@ -267,7 +279,7 @@ NUMBER {
   create_label(feq, STACK_CAPACITY, "%s:%d", "fequal", nb);
   if ($1 == INT_T && $3 == INT_T) {
     printf("\tpop ax\n");
-    printf("\t"pop bx\n");
+    printf("\tpop bx\n");
     printf("\tconst cx,%s\n", eq);
     printf("\tcmp ax,bx\n");
     printf("\tjmp cx\n");
@@ -331,7 +343,7 @@ NUMBER {
     printf("\tconst ax,0\n");
     printf("\tpush ax\n");
     printf("\tconst ax,%s\n", buf2);
-    printf("\jmp ax\n");
+    printf("\tjmp ax\n");
     printf(":%s\n", buf);
     printf("\tconst ax,1\n");
     printf("\tpush ax\n");
@@ -367,7 +379,7 @@ NUMBER {
     printf("\tpop ax\n");
     printf("\tpop bx\n");
     printf("\tor ax,bx\n");
-    printf("\push ax\n");
+    printf("\tpush ax\n");
     $$ = BOOL_T;
   } else {
     if (($1 == BOOL_T && $3 == INT_T) || ($1 == INT_T && $3 == BOOL_T)) {
@@ -415,20 +427,4 @@ int main(void) {
   return EXIT_SUCCESS;
 }
 
-static unsigned int new_label_number() {
-  static unsigned int current_label_number = 0u;
-  if ( current_label_number == UINT_MAX ) {
-    fail_with("Error: maximum label number reached!\n");
-  }
-	return current_label_number++;
-}
 
-static void create_label(char *buf, size_t buf_size, const char *format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  if ( vsnprintf(buf, buf_size, format, ap) >= buf_size ) {
-    va_end(ap);
-    fail_with("Error in label generation: size of label exceeds maximum size!\n");
-  }
-  va_end(ap);
-}
