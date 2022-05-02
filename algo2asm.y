@@ -161,28 +161,114 @@ lignes '\n' {
 
 expr :
 NUMBER {
-
+  printf("\tconst ax,%d\n", $1);
+  printf("\tpush ax\n");
+  $$ = INT_T; 
 }
 | TRUE {
-
+  printf("\tconst ax,1\n");
+	printf("\tpush ax\n");
+	$$ = BOOL_T;
 }
 | FALSE {
-
+  printf("\tconst ax,0\n");
+  printf("\tpush ax\n");
+	 $$ = BOOL_T;
 }
 | ID {
-
+  symbol_table_entry* s= search_symbol_table($1);
+	if (s == NULL) {
+		fprintf(stderr, "symbol not found\n");
+	} else {
+		printf("\tconst ax,var:%s\n", $1);
+		printf("\tloadw bx,ax\n");
+		printf("\tpush bx\n");
+		$$ = s->desc[0];
+	}
 }
 | expr '+' expr {
-
+  if ($1 == INT_T && $3 == INT_T) {
+	  printf("\tpop ax\n");
+	  printf("\tpop bx\n");
+	  printf("\tmul ax,bx\n");
+	  printf("\tpush ax\n");
+      $$ = INT_T;
+  } else {
+      if ($1 == BOOL_T || $3 == BOOL_T) {
+		    $$ = ERR_T;
+      } else if ($1 != INT_T) {
+		    $$ = $1;
+      } else {
+		    $$ = $3;
+      }
+  }
 }
 | expr TIMES expr {
-
+  if ($1 == INT_T && $3 == INT_T) {
+	  printf("\tpop ax\n");
+	  printf("\tpop bx\n");
+	  printf("\tmul ax,bx\n");
+	  printf("\tpush ax\n");
+      $$ = INT_T;
+  } else {
+    if ($1 == BOOL_T || $3 == BOOL_T) {
+		  $$ = ERR_T;
+    } else if ($1 != INT_T) {
+		  $$ = $1;
+    } else {
+		  $$ = $3;
+    }
+  }
 }
 | expr DIV expr {
-
+  if ($1 == INT_T && $3 == INT_T) {
+	  char div0[STACK_CAPACITY];
+	  char ndiv0[STACK_CAPACITY];
+	  int nb = new_label_number();
+	  create_label(div0, STACK_CAPACITY, "%s:%d", "div0", nb);
+	  create_label(ndiv0, STACK_CAPACITY, "%s:%d", "ndiv0", nb);
+	  printf("\tpop bx\n");
+	  printf("\tpop ax\n");
+	  printf("\tconst cx,%s\n", div0);
+	  printf("\tdiv ax,bx\n");
+	  printf("\tjmpe cx\n");
+	  printf("\tpush ax\n");
+	  printf("\tconst ax,%s\n", ndiv0);
+	  printf(":%s\n", div0);
+	  printf("\tconst ax,err0\n");
+	  printf("\tcallprintfs ax\n");
+	  printf("\tend\n");
+	  printf(":%s\n", ndiv0);
+	  $$ = INT_T;
+  } else {
+	  if (stack[stack_size - 1] == 0) {
+		  $$ = ERR_0;
+	  }
+    if ($1 == BOOL_T || $3 == BOOL_T) {
+		  $$ = ERR_T;
+    } else if ($1 != INT_T) {
+		  $$ = $1;
+    } else {
+		    $$ = $3;
+    }
+  }
 }
 | expr '-' expr {
-
+  if ($1 == INT_T && $3 == INT_T) {
+    printf("\tpop bx\n");
+    printf("\tpop ax\n");
+    printf("\tsub ax,bx\n");
+    printf("\tpush ax\n");
+    $$ = INT_T;
+  } else {
+    if ($1 == BOOL_T || $3 == BOOL_T) {
+		  $$ = ERR_T;
+    } else if ($1 != INT_T) {
+		  $$ = $1;
+    } else {
+      $$ = $3;
+    }
+  }
 }
 | expr MOD expr {
 
