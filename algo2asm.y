@@ -22,22 +22,8 @@
       va_end(ap);
       exit(EXIT_FAILURE);
     }
-  //   static unsigned int new_label_number() {
-  //     static unsigned int current_label_number = 0u;
-  //     if ( current_label_number == UINT_MAX ) {
-  //       fail_with("Error: maximum label number reached!\n");
-  //     }
-	// 	  return current_label_number++;
-  //   }
-  // static void create_label(char *buf, size_t buf_size, const char *format, ...) {
-	// 	va_list ap;
-	// 	va_start(ap, format);
-	// 	if ( vsnprintf(buf, buf_size, format, ap) >= buf_size ) {
-	// 		va_end(ap);
-	// 		fail_with("Error in label generation: size of label exceeds maximum size!\n");
-	// 	}
-	// 	va_end(ap);
-  //}
+    static unsigned int new_label_number();
+    static void create_label(char *buf, size_t buf_size, const char *format, ...);
 %}
 %union {
   int integer;
@@ -274,7 +260,50 @@ NUMBER {
 
 }
 | expr EQ expr {
-
+  char eq[STACK_CAPACITY];
+  char feq[STACK_CAPACITY];
+  int nb = new_label_number();
+  create_label(eq, STACK_CAPACITY, "%s:%d", "equal", nb);
+  create_label(feq, STACK_CAPACITY, "%s:%d", "fequal", nb);
+  if ($1 == INT_T && $3 == INT_T) {
+    printf("\tpop ax\n");
+    printf("\t"pop bx\n");
+    printf("\tconst cx,%s\n", eq);
+    printf("\tcmp ax,bx\n");
+    printf("\tjmp cx\n");
+    printf("const ax,0\n");
+    printf("\tpush ax\n");
+    printf("\tconst ax,%s\n", feq);
+    printf("\tjmp ax\n");
+    printf(":%s\n", eq);
+    printf("\tconst ax,1\n");
+    printf("\tpush ax\n");
+    printf(":%s\n", feq);
+    $$ = BOOL_T;
+  } else if ($1 == BOOL_T && $3 == BOOL_T) {
+    printf("\tpop ax\n");
+    printf("\tpop bx\n");
+    printf("const cx,%s\n", eq);
+    printf("\tcmp ax,bx\n");
+    printf("\tjmpc cx\n");
+    printf("\tconst ax,0\n");
+    printf("\tpush ax\n");
+    printf("\tconst ax,%s\n", feq);
+    printf("\tjmp ax\n");
+    printf(":%s\n", eq);
+    printf("\tconst ax,1\n");
+    printf("\tpush ax\n");
+    printf(":%s\n", feq);
+    $$ = BOOL_T;
+  } else {
+    if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
+      $$ = ERR_T;
+    } else if ($1 != INT_T && $1 != BOOL_T) {
+      $$ = $1;
+    } else {
+      $$ = $3;
+    }
+  }
 }
 | expr LE expr {
 
@@ -289,13 +318,66 @@ NUMBER {
 
 }
 | NOT expr {
-
+  if ($2 == BOOL_T) {
+    char buf[STACK_CAPACITY];
+    char buf2[STACK_CAPACITY];
+    int nb = new_label_number();
+    printf("\tpop ax\n");
+    create_label(buf2, STACK_CAPACITY, "%s:%d", "end_not", nb);
+    create_label(buf, STACK_CAPACITY, "%s:%d", "not", nb);
+    printf("\tconst cx,%s\n", buf);
+    printf("\tcmp ax, 0\n");
+    printf("\tjmpc cx\n");
+    printf("\tconst ax,0\n");
+    printf("\tpush ax\n");
+    printf("\tconst ax,%s\n", buf2);
+    printf("\jmp ax\n");
+    printf(":%s\n", buf);
+    printf("\tconst ax,1\n");
+    printf("\tpush ax\n");
+    printf(":%s\n", buf);
+    $$ = BOOL_T;
+  } else {
+    if ($2 == ERR_0) {
+      $$ = $2;
+    } else {
+      $$ = ERR_T;
+    }
+  }
 }
 | expr AND expr {
-
+  if ($1 == BOOL_T && $3 == BOOL_T) {
+    printf("\tpop ax\n");
+    printf("\tpop bx\n");
+    printf("\tand ax,bx\n");
+    printf("\tpush ax\n");
+    $$ = BOOL_T;
+  } else {
+    if (($1 == BOOL_T && $3 == INT_T) || ($1 == INT_T && $3 == BOOL_T)) {
+      $$ = ERR_T;
+    } else if ($1 != INT_T && $1 != BOOL_T) {
+      $$ = $1;
+    } else {
+      $$ = $3;
+    }
+  }
 }
 | expr OR expr {
-
+  if ($1 == BOOL_T && $3 == BOOL_T) {
+    printf("\tpop ax\n");
+    printf("\tpop bx\n");
+    printf("\tor ax,bx\n");
+    printf("\push ax\n");
+    $$ = BOOL_T;
+  } else {
+    if (($1 == BOOL_T && $3 == INT_T) || ($1 == INT_T && $3 == BOOL_T)) {
+      $$ = ERR_T;
+    }  else if ($1 != INT_T && $1 != BOOL_T) {
+      $$ = $1;
+    } else {
+      $$ = $3;
+    }
+  }
 }
 
 parameters :
@@ -331,4 +413,22 @@ void yyerror(char const *s) {
 int main(void) {
   yyparse();
   return EXIT_SUCCESS;
+}
+
+static unsigned int new_label_number() {
+  static unsigned int current_label_number = 0u;
+  if ( current_label_number == UINT_MAX ) {
+    fail_with("Error: maximum label number reached!\n");
+  }
+	return current_label_number++;
+}
+
+static void create_label(char *buf, size_t buf_size, const char *format, ...) {
+  va_list ap;
+  va_start(ap, format);
+  if ( vsnprintf(buf, buf_size, format, ap) >= buf_size ) {
+    va_end(ap);
+    fail_with("Error in label generation: size of label exceeds maximum size!\n");
+  }
+  va_end(ap);
 }
