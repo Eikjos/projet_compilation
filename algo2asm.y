@@ -106,21 +106,65 @@ lignes '\n' {
 }
 | lignes SET parameters valeurs {
   if (size_ids != size_values) {
-    fprintf(stderr, "bizare\n");
+    fprintf(stderr, "invalid parameter\n");
   } else {
-    for (int i = 0; i < size_ids; ++i) {
-      fprintf(stdout, "%s - %d\n", ids[i], values[i]);
+    for (int i = 0 i < size_ids; ++i) {
+      // si les expressions possèdent une erreur
+      if (values[i] != INT_T && values[i] != BOOL_T) {
+        fprintf(stderr, "il y a une erreur dans l'expression\n");
+        exit(EXIT_FAILURE);
+      }
+      symbol_table *s = search_symbol_table(ids[i]);
+      // le cas ou la variable existe déjà
+      if (s != NULL) {
+          if (s->desc[0] != values[i]) {
+            fprintf(stderr, "incompatible type\n");
+            exit(EXIT_FAILURE);
+          } 
+          printf("\tconst ax,var:%s\n", ids[i]);
+          printf("\tpop bx\n")
+          printf("\tstorew bx,ax\n");
+      } else {
+        // le cas où la variable n'existe pas
+        s = new_symbol_table(ids[id]);
+        s->desc[0] = values[i];
+        s->scope = LOCAL_VARIABLE;
+        printf("\tconst ax,var:%s\n", ids[i]);
+        printf("pop bx\n");
+        printf("\tstorew bx,ax\n");
+      }
     }
   }
-  size_ids = 0;
-  size_values = 0;
 }
 | SET parameters valeurs {
   if (size_ids != size_values) {
-    fprintf(stderr, "bizare\n");
+    fprintf(stderr, "invalid parameter\n");
   } else {
-    for (int i = 0; i < size_ids; ++i) {
-      fprintf(stdout, "%s - %d\n", ids[i], values[i]);
+    for (int i = 0 i < size_ids; ++i) {
+      // si les expressions possèdent une erreur
+      if (values[i] != INT_T && values[i] != BOOL_T) {
+        fprintf(stderr, "il y a une erreur dans l'expression\n");
+        exit(EXIT_FAILURE);
+      }
+      symbol_table *s = search_symbol_table(ids[i]);
+      // le cas ou la variable existe déjà
+      if (s != NULL) {
+          if (s->desc[0] != values[i]) {
+            fprintf(stderr, "incompatible type\n");
+            exit(EXIT_FAILURE);
+          } 
+          printf("\tconst ax,var:%s\n", ids[i]);
+          printf("\tpop bx\n")
+          printf("\tstorew bx,ax\n");
+      } else {
+        // le cas où la variable n'existe pas
+        s = new_symbol_table(ids[id]);
+        s->desc[0] = values[i];
+        s->scope = LOCAL_VARIABLE;
+        printf("\tconst ax,var:%s\n", ids[i]);
+        printf("pop bx\n");
+        printf("\tstorew bx,ax\n");
+      }
     }
   }
   size_ids = 0;
@@ -139,7 +183,10 @@ lignes '\n' {
 
 }
 | lignes RETURN expr {
-
+  if ($3 != INT_T && $3 != BOOL_T) {
+    fprintf(stderr, "il y a une erreur dans l'expression retourné\n");
+    exit(EXIT_FAILURE);
+  }
 }
 | FOR ID expr expr lignes FIN_BOUCLE lignes {
 
@@ -154,7 +201,10 @@ lignes '\n' {
 
 }
 | RETURN expr {
-
+  if ($2 != INT_T && $2 != BOOL_T) {
+    fprintf(stderr, "il y a une erreur dans l'expression retourné\n");
+    exit(EXIT_FAILURE);
+  }
 }
 
 expr :
@@ -269,7 +319,36 @@ NUMBER {
   }
 }
 | expr MOD expr {
-
+  int nb = new_label_number();
+  char div0[STACK_CAPACITY];
+  char ndiv0[STACK_CAPACITY];
+  create_label(div0, STACK_CAPACITY, "%s:%d", "div0", nb);
+  create_label(ndiv0, STACK_CAPACITY, "%s:%d", "ndiv0", nb);
+  if ($1 == INT_T && $2 == INT_T) {
+    printf("\tpop bx\n");
+    printf("\tpop ax\n");
+    printf("\tconst dx,ax\n");
+    printf("\tconst cx,%s\n", div0);
+    printf("\tdiv ax,bx\n");
+    printf("\tjmpe cx\n");
+    printf("\tmul ax,bx\n");
+    printf("\tsub dx,ax\n");
+    printf("\tpush dx\n");
+    printf("\tconst ax,%s\n", ndiv0);
+    printf(":‰s\n", div0);
+    printf("\tconst ax,err0\n");
+	  printf("\tcallprintfs ax\n");
+	  printf("\tend\n");
+	  printf(":%s\n", ndiv0);
+  } else {
+    if ($1 == BOOL_T || $3 == BOOL_T) {
+		  $$ = ERR_T;
+    } else if ($1 != INT_T) {
+		  $$ = $1;
+    } else {
+      $$ = $3;
+    }
+  }
 }
 | expr EQ expr {
   char eq[STACK_CAPACITY];
@@ -282,7 +361,7 @@ NUMBER {
     printf("\tpop bx\n");
     printf("\tconst cx,%s\n", eq);
     printf("\tcmp ax,bx\n");
-    printf("\tjmp cx\n");
+    printf("\tjmpc cx\n");
     printf("const ax,0\n");
     printf("\tpush ax\n");
     printf("\tconst ax,%s\n", feq);
@@ -318,16 +397,128 @@ NUMBER {
   }
 }
 | expr LE expr {
-
+  int nb = new_label_number();
+  char finf[STACK_CAPACITY];
+  char inf[STACK_CAPACITY];
+  create_label(finf, STACK_CAPACITY, "%s:%d", "finf", nb);
+  create_label(inf, STACK_CAPACITY, "%s:%d", "inf", nb);
+  if ($1 == INT_T && $3 == INT_T) {
+    printf("\tpop ax\n");
+    printf("\tpop bx\n");
+    printf("\tconst cx,%s\n", inf);
+    printf("\tsless bx,ax\n");
+    printf("\tjmpc cx\n");
+    printf("\tconst ax,0\n");
+    printf("\tpush ax\n");
+    printf("\tconst ax,%s\n", finf);
+    printf("\tjmp ax\n");
+    printf(":%s\n", inf);
+    printf("\tconst ax,1\n");
+    printf("\tpush ax\n");
+    printf(":%s\n", finf);
+  } else {
+    if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
+      $$ = ERR_T;
+    } else if ($1 != INT_T && $1 != BOOL_T) {
+      $$ = $1;
+    } else {
+      $$ = $3;
+    }
+  }
 }
 | expr GRE expr {
-
+  nt nb = new_label_number();
+  char fgeq[STACK_CAPACITY];
+  char geq[STACK_CAPACITY];
+  create_label(fgeq, STACK_CAPACITY, "%s:%d", "fgeq", nb);
+  create_label(geq, STACK_CAPACITY, "%s:%d", "geq", nb);
+  if ($1 == INT_T && $3 == INT_T) {
+    printf("\tpop ax\n");
+    printf("\tpop bx\n");
+    printf("\tconst cx,%s\n", geq);
+    printf("\tsless ax,bx\n");
+    printf("\tjmpc cx\n");
+    printf("\tconst ax,0\n");
+    printf("\tpush ax\n");
+    printf("\tconst ax,%s\n", fgeq);
+    printf("\tjmp ax\n");
+    printf(":%s\n", inf);
+    printf("\tconst ax,1\n");
+    printf("\tpush ax\n");
+    printf(":%s\n", fgeq);
+  } else {
+    if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
+      $$ = ERR_T;
+    } else if ($1 != INT_T && $1 != BOOL_T) {
+      $$ = $1;
+    } else {
+      $$ = $3;
+    }
+  }
 }
 | expr LEQ expr {
-
+  int nb = new_label_number();
+  char finf[STACK_CAPACITY];
+  char inf[STACK_CAPACITY];
+  create_label(finf, STACK_CAPACITY, "%s:%d", "finf", nb);
+  create_label(inf, STACK_CAPACITY, "%s:%d", "inf", nb);
+  if ($1 == INT_T && $3 == INT_T) {
+    printf("\tpop ax\n");
+    printf("\tpop bx\n");
+    printf("\tconst cx,%s\n", inf);
+    printf("\tsless bx,ax\n");
+    printf("\tjmpc cx\n");
+    printf("\tcmp ax,bx\n");
+    printf("\tjmpc cx\n");
+    printf("\tconst ax,0\n");
+    printf("\tpush ax\n");
+    printf("\tconst ax,%s\n", finf);
+    printf("\tjmp ax\n");
+    printf(":%s\n", inf);
+    printf("\tconst ax,1\n");
+    printf("\tpush ax\n");
+    printf(":%s\n", finf);
+  } else {
+    if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
+      $$ = ERR_T;
+    } else if ($1 != INT_T && $1 != BOOL_T) {
+      $$ = $1;
+    } else {
+      $$ = $3;
+    }
+  }
 }
 | expr GEQ expr {
-
+  int nb = new_label_number();
+  char fgeq[STACK_CAPACITY];
+  char geq[STACK_CAPACITY];
+  create_label(fgeq, STACK_CAPACITY, "%s:%d", "fgeq", nb);
+  create_label(geq, STACK_CAPACITY, "%s:%d", "geq", nb);
+  if ($1 == INT_T && $3 == INT_T) {
+    printf("\tpop ax\n");
+    printf("\tpop bx\n");
+    printf("\tconst cx,%s\n", geq);
+    printf("\tsless ax,bx\n");
+    printf("\tjmpc cx\n");
+    printf("\tcmp ax,bx\n");
+    printf("\tjmpc cx\n");
+    printf("\tconst ax,0\n");
+    printf("\tpush ax\n");
+    printf("\tconst ax,%s\n", fgeq);
+    printf("\tjmp ax\n");
+    printf(":%s\n", inf);
+    printf("\tconst ax,1\n");
+    printf("\tpush ax\n");
+    printf(":%s\n", fgeq);
+  } else {
+    if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
+      $$ = ERR_T;
+    } else if ($1 != INT_T && $1 != BOOL_T) {
+      $$ = $1;
+    } else {
+      $$ = $3;
+    }
+  }
 }
 | NOT expr {
   if ($2 == BOOL_T) {
@@ -394,24 +585,20 @@ NUMBER {
 
 parameters :
 parameters ID {
-  printf("id PAS\n");
   ids[size_ids] = $2;
   ++size_ids;
 }
 | ID {
-  printf("ID SEUL\n");
   ids[size_ids] = $1;
   ++size_ids;
 }
 
 valeurs :
-valeurs NUMBER{
-  printf("NUMBER PAS\n");
+valeurs expr{
   values[size_values] = $2;
   ++size_values;
 }
-| NUMBER {
-  printf("NUMBER SEUL\n");
+| expr {
   values[size_values] = $1;
   ++size_values;
 }
