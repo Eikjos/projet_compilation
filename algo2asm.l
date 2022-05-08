@@ -8,6 +8,9 @@
     char* strcpy_perso(const char* text);
 %}
 ID [a-zA-Z]+[[:digit:]a-zA-Z]*
+%s BOUCLE_FOR
+%s BOUCLE_WHILE
+%option stack
 %option noyywrap
 %%
 [[:digit:]]+ {string_to_int(&yylval.integer, yytext); return NUMBER;}
@@ -16,12 +19,13 @@ ID [a-zA-Z]+[[:digit:]a-zA-Z]*
 \\begin\{algo\} {return DEBUT;}
 \\end\{algo\} {return FIN;}
 \\SET {return SET;}
-\\DOFORI {return FOR;}
-\\OD {return FIN_BOUCLE;}
+\\DOFORI {yy_push_state(BOUCLE_FOR); return FOR;}
+<BOUCLE_FOR>\\OD {yy_pop_state(); return FIN_BOUCLE;}
+<BOUCLE_WHILE>\\OD {yy_pop_state(); return FIN_BOUCLE_WHILE;}
 \\IF {return IF;}
 \\FI {return FIN_IF;}
 \\ELSE {return ELSE;}
-\\DOWHILE {return WHILE;}
+\\DOWHILE {yy_push_state(BOUCLE_WHILE); return WHILE;}
 \\RETURN {return RETURN;}
 \\NEG {return NOT;}
 \\LANG {return AND;}

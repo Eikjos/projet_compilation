@@ -18,6 +18,8 @@ typedef enum {
 
 typedef enum { GLOBAL_VARIABLE, LOCAL_VARIABLE, FUNCTION } symbol_class;
 
+typedef enum {EQ_T, LEQ_T, GEQ_T, GRE_T, LE_T } comp;
+
 typedef struct symbol_table {
   const char *name;
   symbol_class scope;

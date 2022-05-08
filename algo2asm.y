@@ -3,7 +3,12 @@
     #include <stdlib.h>
     #include <stdio.h>
     #include <stdarg.h>
+    #include <string.h>
     #include <limits.h>
+    #include <sys/types.h>
+    #include <sys/stat.h>
+    #include <fcntl.h>
+    #include <unistd.h>
     #include "stable.h"
     #include "stypes.h"
     int yylex(void);
@@ -12,6 +17,10 @@
     static int values[STACK_CAPACITY];
     static char* ids[STACK_CAPACITY];
     static int stack[STACK_CAPACITY];
+    static char* boucle[STACK_CAPACITY];
+    static char* boucleEnd[STACK_CAPACITY];
+    static char* varBoucle[STACK_CAPACITY];
+    int size_end = 0;
     int stack_size = 0;
     int size_ids = 0;
     int size_values = 0;
@@ -39,6 +48,7 @@
   int integer;
   stypes t;
   char* id;
+  comp c;
 }
 
 %token<integer>NUMBER
@@ -47,12 +57,13 @@
 %token DEBUT
 %token FIN
 %token FOR WHILE
-%token FIN_BOUCLE
+%token FIN_BOUCLE FIN_BOUCLE_WHILE
 %token IF ELSE FIN_IF
 %token TRUE FALSE
 %token RETURN 
 
 %type<t> expr
+%type<c> comparaison
 %left OR AND
 %right NOT
 %left EQ NEQ LE GRE LEQ GEQ
@@ -76,6 +87,17 @@ function :
       }
       s->scope = FUNCTION;
       s->nParams = nb_params; 
+      char path[STACK_CAPACITY];
+      create_label(path, STACK_CAPACITY, "%s.%s", $2, "asm");
+      int fd = open(path, O_CREAT | O_WRONLY);
+      if (fd == -1) {
+        fprintf(stderr, "open()");
+        exit(EXIT_FAILURE);
+      }
+      if (dup2(STDIN_FILENO, fd) == -1) {
+        fprintf(stderr, "dup2()");
+        exit(EXIT_FAILURE);
+      }
   }
 ;
 
@@ -109,12 +131,12 @@ params :
 ;
 
 lignes : 
-  lignes '\n' 
+  lignes '\n'
   | lignes SET parameters valeurs {
     if (size_ids != size_values) {
       fprintf(stderr, "invalid parameter\n");
     } else {
-      for (int i = 0 i < size_ids; ++i) {
+      for (int i = 0; i < size_ids; ++i) {
         // si les expressions possèdent une erreur
         if (values[i] != INT_T && values[i] != BOOL_T) {
           fprintf(stderr, "il y a une erreur dans l'expression\n");
@@ -128,11 +150,11 @@ lignes :
               exit(EXIT_FAILURE);
             } 
             printf("\tconst ax,var:%s\n", ids[i]);
-            printf("\tpop bx\n")
+            printf("\tpop bx\n");
             printf("\tstorew bx,ax\n");
         } else {
           // le cas où la variable n'existe pas
-          s = new_symbol_table(ids[id]);
+          s = new_symbol_table(ids[i]);
           s->desc[0] = values[i];
           s->scope = LOCAL_VARIABLE;
           printf("\tconst ax,var:%s\n", ids[i]);
@@ -146,7 +168,7 @@ lignes :
     if (size_ids != size_values) {
       fprintf(stderr, "invalid parameter\n");
     } else {
-      for (int i = 0 i < size_ids; ++i) {
+      for (int i = 0; i < size_ids; ++i) {
         // si les expressions possèdent une erreur
         if (values[i] != INT_T && values[i] != BOOL_T) {
           fprintf(stderr, "il y a une erreur dans l'expression\n");
@@ -160,11 +182,11 @@ lignes :
               exit(EXIT_FAILURE);
             } 
             printf("\tconst ax,var:%s\n", ids[i]);
-            printf("\tpop bx\n")
+            printf("\tpop bx\n");
             printf("\tstorew bx,ax\n");
         } else {
           // le cas où la variable n'existe pas
-          s = new_symbol_table(ids[id]);
+          s = new_symbol_table(ids[i]);
           s->desc[0] = values[i];
           s->scope = LOCAL_VARIABLE;
           printf("\tconst ax,var:%s\n", ids[i]);
@@ -176,26 +198,231 @@ lignes :
     size_ids = 0;
     size_values = 0;
   }
-  | lignes FOR ID expr expr lignes FIN_BOUCLE lignes {
-
+  | FOR ID expr expr lignes {
+    if ($3 == INT_T && $4 == INT_T) {
+      int nb = new_label_number();
+      char pour[STACK_CAPACITY] ;
+      char endFor[STACK_CAPACITY];
+      char var[STACK_CAPACITY];
+      char varEnd[STACK_CAPACITY];
+      create_label(pour, STACK_CAPACITY, "%s:%d", "for", nb);
+      create_label(endFor, STACK_CAPACITY, "%s:%d", "endfor", nb);
+      create_label(var, STACK_CAPACITY, "%s:%d", "ifor", nb);
+      create_label(varEnd, STACK_CAPACITY, "%s:%d", "iendfor", nb);
+      symbol_table* s = search_symbol_table($2);
+      if (s != NULL) {
+        if (s->desc[0] != INT_T) {
+          fprintf(stderr, "erreur de typage\n");
+          exit(EXIT_FAILURE);
+        }
+        strcpy(var, $2);
+      } else {
+        symbol_table* s = new_symbol_table(var);
+        s->desc[0] = INT_T;
+      }
+      s = new_symbol_table(varEnd);
+      s->desc[0] = INT_T;
+      printf("\tpop bx\n");
+      printf("storew bx,%s\n", varEnd);
+      printf("\tpop bx\n");
+      printf("storew bx,%s\n", var);
+      boucle[size_end] = pour;
+      varBoucle[size_end] = var;
+      boucleEnd[size_end] = endFor;
+      ++size_end;
+      printf(":%s\n", pour);
+      printf("\tloadw ax,%s\n", var);
+      printf("\tloadw bx,%s\n", varEnd);
+      printf("\tconst cx,%s\n", endFor);
+      printf("\tcmp ax,bx\n");
+      printf("\tjmpc cx\n");
+    } else {
+      fprintf(stderr, "erreur interne boucle for\n");
+      exit(EXIT_FAILURE);
+    }
   }
-  | lignes IF expr lignes FIN_IF lignes {
+  | lignes IF expr lignes FIN_IF {
 
   }
   | lignes IF expr lignes ELSE lignes FIN_IF {
 
   }
-  | lignes WHILE expr lignes FIN_BOUCLE {
-
+  | lignes WHILE ID comparaison expr lignes {
+    if ($4 == INT_T) {
+      printf("/tpop ax\n");
+      int nb = new_label_number();
+      char continuer[STACK_CAPACITY];
+      char tant[STACK_CAPACITY];
+      char endWhile[STACK_CAPACITY];
+      create_label(tant, STACK_CAPACITY, "%s:%d", "while", nb);
+      create_label(continuer, STACK_CAPACITY, "%s:%d", "continue", nb); 
+      create_label(endWhile, STACK_CAPACITY, "%s:%d", "endWhile", nb);
+      boucle[size_end] = tant;
+      boucleEnd[size_end] = endWhile;
+      ++size_end;
+      symbol_table* s = search_symbol_table($3); 
+      if (s == NULL) {
+        fprintf(stderr, "variable indefined\n");
+        exit(EXIT_FAILURE);
+      }
+      printf(":%s\n", tant);
+      printf("\tconst ax,var:%s\n", $3);
+      printf("\tloadw bx,ax\n");
+      printf("\tpop ax\n");
+      if ($3 == EQ_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+        printf("\†const ax,%s\n", endWhile);
+        printf("/tjmp ax\n");
+      } else if ($3 == LEQ_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+        printf("\tconst ax,%s/n", endWhile);
+        printf("\tjmp ax/n");
+      } else if ($3 == GEQ_T) {
+        printf("\tconst cx,%s\n", endWhile);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+      } else if ($3 == LE_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tslees bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\const ax,%s\n", endWhile);
+        printf("jmp ax\n");
+      } else if ($3 == GRE_T) {
+        printf("\tconst cx,%s\n", endWhile);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+      }
+      printf(":%s\n", continuer);
+    } else {
+      fprintf(stderr, "erreur interne boucle while\n");
+    }
   }
-  | lignes RETURN expr {
+  | lignes WHILE expr comparaison ID lignes {
+    if ($4 == INT_T) {
+      printf("/tpop ax\n");
+      int nb = new_label_number();
+      char continuer[STACK_CAPACITY];
+      char tant[STACK_CAPACITY];
+      char endWhile[STACK_CAPACITY];
+      create_label(tant, STACK_CAPACITY, "%s:%d", "while", nb);
+      create_label(continuer, STACK_CAPACITY, "%s:%d", "continue", nb); 
+      create_label(endWhile, STACK_CAPACITY, "%s:%d", "endWhile", nb);
+      boucle[size_end] = tant;
+      boucleEnd[size_end] = endWhile;
+      ++size_end;
+      symbol_table* s = search_symbol_table($4); 
+      if (s == NULL) {
+        fprintf(stderr, "variable indefined\n");
+        exit(EXIT_FAILURE);
+      }
+      printf(":%s\n", tant);
+      printf("\tconst ax,var:%s\n", $4);
+      printf("\tloadw bx,ax\n");
+      printf("\tpop ax\n");
+      if ($3 == EQ_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+        printf("\†const ax,%s\n", endWhile);
+        printf("/tjmp ax\n");
+      } else if ($3 == LEQ_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+        printf("\tconst ax,%s/n", endWhile);
+        printf("\tjmp ax/n");
+      } else if ($3 == GEQ_T) {
+        printf("\tconst cx,%s\n", endWhile);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+      } else if ($3 == LE_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tslees bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\const ax,%s\n", endWhile);
+        printf("jmp ax\n");
+      } else if ($3 == GRE_T) {
+        printf("\tconst cx,%s\n", endWhile);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+      }
+      printf(":%s\n", continuer);
+    } else {
+      fprintf(stderr, "erreur interne boucle while\n");
+      exit(EXIT_FAILURE);
+    }
+  }
+  | lignes RETURN expr lignes {
     if ($3 != INT_T && $3 != BOOL_T) {
       fprintf(stderr, "il y a une erreur dans l'expression retourné\n");
       exit(EXIT_FAILURE);
     }
+    printf("\tconst ax,fin_function\n");
+    printf("/tjmp ax\n");
   }
-  | FOR ID expr expr lignes FIN_BOUCLE lignes {
-
+  | lignes FOR ID expr expr lignes{
+    if ($4 == INT_T && $5 == INT_T) {
+      int nb = new_label_number();
+      char pour[STACK_CAPACITY];
+      char endFor[STACK_CAPACITY];
+      char varEnd[STACK_CAPACITY];
+      char var[STACK_CAPACITY];
+      create_label(pour, STACK_CAPACITY, "%s:%d", "for", nb);
+      create_label(endFor, STACK_CAPACITY, "%s:%d", "endfor", nb);
+      create_label(var, STACK_CAPACITY, "%s:%d", "ifor", nb);
+      create_label(varEnd, STACK_CAPACITY, "%s:%d", "iendfor", nb);
+      symbol_table* s = search_symbol_table($3);
+      if (s != NULL) {
+        if (s->desc[0] != INT_T) {
+          fprintf(stderr, "erreur de typage\n");
+          exit(EXIT_FAILURE);
+        }
+        strcpy(var, $3);
+      } else {
+        symbol_table* s = new_symbol_table(var);
+        s->desc[0] = INT_T;
+      }
+      s = new_symbol_table(varEnd);
+      s->desc[0] = INT_T;
+      printf("\tpop bx\n");
+      printf("storew bx,%s\n", varEnd);
+      printf("\tpop bx\n");
+      printf("storew bx,%s\n", var);
+      boucle[size_end] = pour;
+      varBoucle[size_end] = var;
+      boucleEnd[size_end] = endFor;
+      ++size_end;
+      printf(":%s\n", pour);
+      printf("\tloadw ax,%s\n", var);
+      printf("\tloadw bx,%s\n", varEnd);
+      printf("\tconst cx,%s\n", endFor);
+      printf("\tcmp ax,bx\n");
+      printf("\tjmpc cx\n");
+    } else {
+      fprintf(stderr, "erreur interne boucle for\n");
+      exit(EXIT_FAILURE);
+    }
+  }
+  | lignes FIN_BOUCLE lignes{
+    printf("\tloadw ax,%s\n", varBoucle[size_end]);
+    printf("\tadd ax,1\n");
+    printf("\tstorew ax,%s\n", varBoucle[size_end]);
+    printf("const cx,%s\n", boucle[size_end]);
+    printf("\tjmp cx\n");
+    printf(":%s\n", boucleEnd[size_end]);
+    --size_end;
   }
   | IF expr lignes FIN_IF lignes {
 
@@ -203,16 +430,156 @@ lignes :
   | IF expr lignes ELSE lignes FIN_IF {
 
   }
-  | WHILE expr lignes FIN_BOUCLE {
-
+  | WHILE ID comparaison expr lignes {
+    if ($4 == INT_T) {
+      printf("/tpop ax\n");
+      int nb = new_label_number();
+      char continuer[STACK_CAPACITY];
+      char tant[STACK_CAPACITY];
+      char endWhile[STACK_CAPACITY];
+      create_label(tant, STACK_CAPACITY, "%s:%d", "while", nb);
+      create_label(continuer, STACK_CAPACITY, "%s:%d", "continue", nb); 
+      create_label(endWhile, STACK_CAPACITY, "%s:%d", "endWhile", nb);
+      boucle[size_end] = tant;
+      boucleEnd[size_end] = endWhile;
+      ++size_end;
+      symbol_table* s = search_symbol_table($2); 
+      if (s == NULL) {
+        fprintf(stderr, "variable indefined\n");
+        exit(EXIT_FAILURE);
+      }
+      printf(":%s\n", tant);
+      printf("\tconst ax,var:%s\n", $2);
+      printf("\tloadw bx,ax\n");
+      printf("\tpop ax\n");
+      if ($3 == EQ_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+        printf("\†const ax,%s\n", endWhile);
+        printf("/tjmp ax\n");
+      } else if ($3 == LEQ_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+        printf("\tconst ax,%s/n", endWhile);
+        printf("\tjmp ax/n");
+      } else if ($3 == GEQ_T) {
+        printf("\tconst cx,%s\n", endWhile);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+      } else if ($3 == LE_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tslees bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\const ax,%s\n", endWhile);
+        printf("jmp ax\n");
+      } else if ($3 == GRE_T) {
+        printf("\tconst cx,%s\n", endWhile);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+      }
+      printf(":%s\n", continuer);
+    } else {
+      fprintf(stderr, "erreur interne boucle while\n");
+    }
+  }
+  | WHILE expr comparaison ID lignes {
+    if ($4 == INT_T) {
+      printf("/tpop ax\n");
+      int nb = new_label_number();
+      char continuer[STACK_CAPACITY];
+      char tant[STACK_CAPACITY];
+      char endWhile[STACK_CAPACITY];
+      create_label(tant, STACK_CAPACITY, "%s:%d", "while", nb);
+      create_label(continuer, STACK_CAPACITY, "%s:%d", "continue", nb); 
+      create_label(endWhile, STACK_CAPACITY, "%s:%d", "endWhile", nb);
+      boucle[size_end] = tant;
+      boucleEnd[size_end] = endWhile;
+      ++size_end;
+      symbol_table* s = search_symbol_table($4); 
+      if (s == NULL) {
+        fprintf(stderr, "variable indefined\n");
+        exit(EXIT_FAILURE);
+      }
+      printf(":%s\n", tant);
+      printf("\tconst ax,var:%s\n", $4);
+      printf("\tloadw bx,ax\n");
+      printf("\tpop ax\n");
+      if ($3 == EQ_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+        printf("\†const ax,%s\n", endWhile);
+        printf("/tjmp ax\n");
+      } else if ($3 == LEQ_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+        printf("\tconst ax,%s/n", endWhile);
+        printf("\tjmp ax/n");
+      } else if ($3 == GEQ_T) {
+        printf("\tconst cx,%s\n", endWhile);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+      } else if ($3 == LE_T) {
+        printf("\tconst cx,%s\n", continuer);
+        printf("\tslees bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\const ax,%s\n", endWhile);
+        printf("jmp ax\n");
+      } else if ($3 == GRE_T) {
+        printf("\tconst cx,%s\n", endWhile);
+        printf("\tsless bx,ax\n");
+        printf("\tjmpc cx\n");
+        printf("\tcmp ax,bx\n");
+        printf("\tjmpc cx\n");
+      }
+      printf(":%s\n", continuer);
+    } else {
+      fprintf(stderr, "erreur interne boucle while\n");
+      exit(EXIT_FAILURE);
+    }
+  }
+  | lignes FIN_BOUCLE_WHILE lignes {
+    printf("\tconst ax,%s\n", boucle[size_end]);
+    printf("\tjmp ax\n");
+    printf(":%s\n", boucleEnd[size_end]);
+    --size_end;
   }
   | RETURN expr {
     if ($2 != INT_T && $2 != BOOL_T) {
       fprintf(stderr, "il y a une erreur dans l'expression retourné\n");
       exit(EXIT_FAILURE);
     }
+    printf("\tconst ax,fin_function\n");
+    printf("\tjmp ax\n");
   }
 ;
+comparaison:
+  EQ {
+    $$ = EQ_T;
+  }
+  | LEQ {
+    $$ = LEQ_T;
+  }
+  | GRE {
+    $$ = GRE_T;
+  }
+  | GEQ {
+    $$ = GEQ_T;
+  }
+  | LE {
+    $$ = LE_T;
+  }
+;
+
 expr :
   NUMBER {
     printf("\tconst ax,%d\n", $1);
@@ -330,7 +697,7 @@ expr :
     char ndiv0[STACK_CAPACITY];
     create_label(div0, STACK_CAPACITY, "%s:%d", "div0", nb);
     create_label(ndiv0, STACK_CAPACITY, "%s:%d", "ndiv0", nb);
-    if ($1 == INT_T && $2 == INT_T) {
+    if ($1 == INT_T && $3 == INT_T) {
       printf("\tpop bx\n");
       printf("\tpop ax\n");
       printf("\tconst dx,ax\n");
@@ -433,7 +800,7 @@ expr :
     }
   }
   | expr GRE expr {
-    nt nb = new_label_number();
+    int nb = new_label_number();
     char fgeq[STACK_CAPACITY];
     char geq[STACK_CAPACITY];
     create_label(fgeq, STACK_CAPACITY, "%s:%d", "fgeq", nb);
@@ -448,7 +815,7 @@ expr :
       printf("\tpush ax\n");
       printf("\tconst ax,%s\n", fgeq);
       printf("\tjmp ax\n");
-      printf(":%s\n", inf);
+      printf(":%s\n", geq);
       printf("\tconst ax,1\n");
       printf("\tpush ax\n");
       printf(":%s\n", fgeq);
@@ -512,7 +879,7 @@ expr :
       printf("\tpush ax\n");
       printf("\tconst ax,%s\n", fgeq);
       printf("\tjmp ax\n");
-      printf(":%s\n", inf);
+      printf(":%s\n", geq);
       printf("\tconst ax,1\n");
       printf("\tpush ax\n");
       printf(":%s\n", fgeq);
