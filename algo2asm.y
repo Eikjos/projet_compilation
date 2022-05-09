@@ -20,6 +20,10 @@
     static char* boucle[STACK_CAPACITY];
     static char* boucleEnd[STACK_CAPACITY];
     static char* varBoucle[STACK_CAPACITY];
+    static char* finsi[STACK_CAPACITY];
+    static char* ifelse[STACK_CAPACITY];
+    int size_else = 0;
+    int size_fi = 0;
     int size_end = 0;
     int stack_size = 0;
     int size_ids = 0;
@@ -94,7 +98,7 @@ function :
         fprintf(stderr, "open()");
         exit(EXIT_FAILURE);
       }
-      if (dup2(STDIN_FILENO, fd) == -1) {
+      if (dup2(STDOUT_FILENO, fd) == -1) {
         fprintf(stderr, "dup2()");
         exit(EXIT_FAILURE);
       }
@@ -242,10 +246,40 @@ lignes :
     }
   }
   | lignes IF expr lignes FIN_IF {
-
+    if ($3 == BOOL_T) {
+      int nb = new_label_number();
+      char fin[STACK_CAPACITY];
+      create_label(fin, STACK_CAPACITY, "%s:%d", "finif", nb);
+      finsi[size_fi] = fin;
+      ++size_fi;
+      printf("\tpop ax\n");
+      printf("\tconst cx,%s\n", fin);
+      printf("\tcmp ax,0\n");
+      printf("\tjmpc cx\n");
+    } else {
+      fprintf(stderr, "erreur de typage\n");
+      exit(EXIT_FAILURE);
+    }
   }
   | lignes IF expr lignes ELSE lignes FIN_IF {
-
+    if ($3 == BOOL_T) {
+      int nb = new_label_number();
+      char fin[STACK_CAPACITY];
+      char sinon[STACK_CAPACITY];
+      create_label(fin, STACK_CAPACITY, "%s:%d", "finif", nb);
+      create_label(sinon, STACK_CAPACITY, "%s:%d", "sinon", nb);
+      ifelse[size_else] = sinon;
+      ++size_else;
+      finsi[size_fi] = fin;
+      ++size_fi;
+      printf("\tpop ax\n");
+      printf("\ttconst cx,%s\n", sinon);
+      printf("\tcmp ax,0\n");
+      printf("\tjmpc cx\n");
+    } else {
+      fprintf(stderr, "erreur de typage\n");
+      exit(EXIT_FAILURE);
+    }
   }
   | lignes WHILE ID comparaison expr lignes {
     if ($4 == INT_T) {
@@ -425,10 +459,54 @@ lignes :
     --size_end;
   }
   | IF expr lignes FIN_IF lignes {
-
+    if ($2 == BOOL_T) {
+      int nb = new_label_number();
+      char fin[STACK_CAPACITY];
+      create_label(fin, STACK_CAPACITY, "%s:%d", "finif", nb);
+      finsi[size_fi] = fin;
+      ++size_fi;
+      printf("\tpop ax\n");
+      printf("\tconst cx,%s\n", fin);
+      printf("\tcmp ax,0\n");
+      printf("\tjmpc cx\n");
+    } else {
+      fprintf(stderr, "erreur de typage\n");
+      exit(EXIT_FAILURE);
+    }
+  }
+  | FIN_IF lignes {
+      printf(":%s\n", finsi[size_fi]);
+      --size_fi;
+  }
+  | lignes FIN_IF lignes {
+    printf(":%s\n", finsi[size_fi]);  
+    --size_fi;
   }
   | IF expr lignes ELSE lignes FIN_IF {
-
+    if ($2 == BOOL_T) {
+      int nb = new_label_number();
+      char fin[STACK_CAPACITY];
+      char sinon[STACK_CAPACITY];
+      create_label(fin, STACK_CAPACITY, "%s:%d", "finif", nb);
+      create_label(sinon, STACK_CAPACITY, "%s:%d", "sinon", nb);
+      ifelse[size_else] = sinon;
+      ++size_else;
+      finsi[size_fi] = fin;
+      ++size_fi;
+      printf("\tpop ax\n");
+      printf("\ttconst cx,%s\n", sinon);
+      printf("\tcmp ax,0\n");
+      printf("\tjmpc cx\n");
+    } else {
+      fprintf(stderr, "erreur de typage\n");
+      exit(EXIT_FAILURE);
+    }
+  }
+  | lignes ELSE lignes {
+    printf("\tconst ax,%s\n", finsi[size_fi]);
+    printf("\tjmp ax\n");
+    printf(":%s\n", ifelse[size_else]);
+    --size_else;
   }
   | WHILE ID comparaison expr lignes {
     if ($4 == INT_T) {
