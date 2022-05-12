@@ -40,8 +40,8 @@ ID [a-zA-Z]+[[:digit:]a-zA-Z]*
 \\DIV {return DIV;}
 true {return TRUE;}
 false {return FALSE;}
-\{
-\}
+\} {return ACC_F;}
+\{ {return ACC_D;}
 ,
 \n
 \+ {return ADD;}

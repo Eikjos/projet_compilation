@@ -82,6 +82,7 @@
 %token IF ELSE FIN_IF
 %token TRUE FALSE
 %token RETURN 
+%token ACC_D ACC_F
 
 %type<t> expr
 %type<c> comparaison
@@ -96,13 +97,13 @@
 %%
 function : 
   function '\n' {}
-  | DEBUT ID {
-    symbol_table* s = search_symbol_table($2);
+  | DEBUT ACC_D ID ACC_F {
+    symbol_table* s = search_symbol_table($3);
     if (s != NULL) {
       fprintf(stderr, "la fonction est déjà définie\n");
       exit(EXIT_FAILURE);
     }
-    s = new_symbol_table($2);
+    s = new_symbol_table($3);
     if (s == NULL) {
       fprintf(stderr, "erreur lors de la création de la fonction\n");
       exit(EXIT_FAILURE);
@@ -110,7 +111,7 @@ function :
     s->scope = FUNCTION;
     s->nParams = nb_params; 
     char path[STACK_CAPACITY];
-    create_label(path, STACK_CAPACITY, "%s.%s", $2, "asm");
+    create_label(path, STACK_CAPACITY, "%s.%s", $3, "asm");
     fd = open(path, O_RDWR| O_CREAT, S_IRWXU);
     if (fd == -1) {
       fprintf(stderr, "open()\n");
@@ -120,23 +121,23 @@ function :
       fprintf(stderr, "erreur dup2\n");
       exit(EXIT_FAILURE);
     }
-    printf(":%s\n", $2);
+    printf(":%s\n", $3);
   }
-  | DEBUT ID function {
-      printf(":%s\n", $2);
-      symbol_table* s = search_symbol_table($2);
+  | DEBUT ACC_D ID ACC_F function {
+      printf(":%s\n", $3);
+      symbol_table* s = search_symbol_table($3);
       if (s != NULL) {
         fprintf(stderr, "la fonction est déjà définie\n");
         exit(EXIT_FAILURE);
       }
-      s = new_symbol_table($2);
+      s = new_symbol_table($3);
       if (s == NULL) {
         exit(EXIT_FAILURE);
       }
       s->scope = FUNCTION;
       s->nParams = nb_params; 
       char path[STACK_CAPACITY];
-      create_label(path, STACK_CAPACITY, "%s.%s", $2, "asm");
+      create_label(path, STACK_CAPACITY, "%s.%s", $3, "asm");
       int fd = open(path, O_RDWR| O_CREAT, S_IRWXU);
       if (fd == -1) {
         fprintf(stderr, "open()\n");
@@ -146,12 +147,11 @@ function :
         fprintf(stderr, "dup2()");
         exit(EXIT_FAILURE);
       }
-      printf(":%s\n", $2);
+      printf(":%s\n", $3);
   }
-  | function params lignes{
+  | function ACC_D params ACC_F lignes{
   }
 ;
-
 params : 
   ID {
     symbol_table* s = search_symbol_table($1);
@@ -189,7 +189,7 @@ lignes :
   | FIN {
     exit(EXIT_SUCCESS);
   }
-  | lignes SET parameters valeurs {
+  | lignes SET ACC_D parameters ACC_F ACC_D valeurs ACC_F {
     if (size_ids != size_values) {
       fprintf(stderr, "invalid parameter\n");
     } else {
@@ -219,9 +219,11 @@ lignes :
           printf("\tstorew bx,ax\n");
         }
       }
+      size_ids = 0;
+      size_values = 0;
     }
   }
-  | SET parameters valeurs {
+  | SET ACC_D parameters ACC_F ACC_D valeurs ACC_F {
     if (size_ids != size_values) {
       fprintf(stderr, "invalid parameter\n");
     } else {
@@ -251,103 +253,25 @@ lignes :
           printf("\tstorew bx,ax\n");
         }
       }
+      size_ids = 0;
+      size_values = 0;
     }
     size_ids = 0;
     size_values = 0;
   }
-  | FOR ID expr expr  {
-    if ($3 == INT_T && $4 == INT_T) {
-      int nb = new_label_number();
-      char pour[STACK_CAPACITY] ;
-      char endFor[STACK_CAPACITY];
-      char var[STACK_CAPACITY];
-      char varEnd[STACK_CAPACITY];
-      create_label(pour, STACK_CAPACITY, "%s:%d", "for", nb);
-      create_label(endFor, STACK_CAPACITY, "%s:%d", "endfor", nb);
-      create_label(var, STACK_CAPACITY, "%s:%d", "ifor", nb);
-      create_label(varEnd, STACK_CAPACITY, "%s:%d", "iendfor", nb);
-      symbol_table* s = search_symbol_table($2);
-      if (s != NULL) {
-        if (s->desc[0] != INT_T) {
-          fprintf(stderr, "erreur de typage\n");
-          exit(EXIT_FAILURE);
-        }
-        strcpy(var, $2);
-      } else {
-        symbol_table* s = new_symbol_table(var);
-        s->desc[0] = INT_T;
-      }
-      s = new_symbol_table(varEnd);
-      s->desc[0] = INT_T;
-      printf("\tpop bx\n");
-      printf("\tstorew bx,var:%s\n", varEnd);
-      printf("\tpop bx\n");
-      printf("\tstorew bx,var:%s\n", var);
-      boucle[size_end] = pour;
-      varBoucle[size_end] = var;
-      boucleEnd[size_end] = endFor;
-      ++size_end;
-      printf(":%s\n", pour);
-      printf("\tloadw ax,var:%s\n", var);
-      printf("\tloadw bx,var:%s\n", varEnd);
-      printf("\tconst cx,%s\n", endFor);
-      printf("\tcmp ax,bx\n");
-      printf("\tjmpc cx\n");
-    } else {
-      fprintf(stderr, "erreur interne boucle for\n");
-      exit(EXIT_FAILURE);
-    }
-  }
-  | lignes RETURN expr {
-    if ($3 != INT_T && $3 != BOOL_T) {
+  | lignes RETURN ACC_D expr ACC_F {
+    if ($4 != INT_T && $4 != BOOL_T) {
       fprintf(stderr, "il y a une erreur dans l'expression retourné\n");
       exit(EXIT_FAILURE);
     }
     printf("\tconst ax,fin_function\n");
     printf("\tjmp ax\n");
   }
-  | lignes FOR ID expr expr {
-    if ($4 == INT_T && $5 == INT_T) {
-      int nb = new_label_number();
-      char pour[STACK_CAPACITY];
-      char endFor[STACK_CAPACITY];
-      char varEnd[STACK_CAPACITY];
-      char var[STACK_CAPACITY];
-      create_label(pour, STACK_CAPACITY, "%s:%d", "for", nb);
-      create_label(endFor, STACK_CAPACITY, "%s:%d", "endfor", nb);
-      create_label(var, STACK_CAPACITY, "%s:%d", "ifor", nb);
-      create_label(varEnd, STACK_CAPACITY, "%s:%d", "iendfor", nb);
-      symbol_table* s = search_symbol_table($3);
-      if (s != NULL) {
-        if (s->desc[0] != INT_T) {
-          fprintf(stderr, "erreur de typage\n");
-          exit(EXIT_FAILURE);
-        }
-        strcpy(var, $3);
-      } else {
-        symbol_table* s = new_symbol_table(var);
-        s->desc[0] = INT_T;
-      }
-      s = new_symbol_table(varEnd);
-      s->desc[0] = INT_T;
-      printf("\tpop bx\n");
-      printf("storew bx,var:%s\n", varEnd);
-      printf("\tpop bx\n");
-      printf("\tstorew bx,var:%s\n", var);
-      boucle[size_end] = pour;
-      varBoucle[size_end] = var;
-      boucleEnd[size_end] = endFor;
-      ++size_end;
-      printf(":%s\n", pour);
-      printf("\tloadw ax,var:%s\n", var);
-      printf("\tloadw bx,var:%s\n", varEnd);
-      printf("\tconst cx,%s\n", endFor);
-      printf("\tcmp ax,bx\n");
-      printf("\tjmpc cx\n");
-    } else {
-      fprintf(stderr, "erreur interne boucle for\n");
-      exit(EXIT_FAILURE);
-    }
+  | lignes bouclefor {
+
+  }
+  | bouclefor {
+    
   }
   | lignes FIN_BOUCLE{
     printf("\tloadw ax,var:%s\n", varBoucle[size_end - 1]);
@@ -357,6 +281,8 @@ lignes :
     printf("\tjmp cx\n");
     printf(":%s\n", boucleEnd[size_end - 1]);
     --size_end;
+  }
+  | lignes boucleif {
   }
   | boucleif {
   }
@@ -383,13 +309,16 @@ lignes :
     printf(":%s\n", ifelse[size_else - 1]);
     --size_else;
   }
-  |  RETURN expr {
-    if ($2 != INT_T && $2 != BOOL_T) {
+  |  RETURN ACC_D expr ACC_F {
+    if ($3 != INT_T && $3 != BOOL_T) {
       fprintf(stderr, "il y a une erreur dans l'expression retourné\n");
       exit(EXIT_FAILURE);
     }
     printf("\tconst ax,fin_function\n");
     printf("\tjmp ax\n");
+  }
+  | lignes boucleWhile exprWhile {
+
   }
   | boucleWhile exprWhile {
 
@@ -420,13 +349,58 @@ boucleWhile:
   }
 ;
 exprWhile:
-  | expr {
-      if ($1 == BOOL_T) {
+  | ACC_D expr ACC_F {
+      if ($2 == BOOL_T) {
         printf("\tpop ax\n");
         printf("\tconst cx,%s\n", stackEndWhile[size_endWhile - 1]);
         printf("\tcmp ax,0\n");
         printf("\tjmpc cx\n");
       }
+  }
+;
+bouclefor:
+  | FOR ACC_D ID ACC_F ACC_D expr ACC_F ACC_D expr ACC_F {
+    if ($6 == INT_T && $9 == INT_T) {
+      int nb = new_label_number();
+      char pour[STACK_CAPACITY];
+      char endFor[STACK_CAPACITY];
+      char varEnd[STACK_CAPACITY];
+      char var[STACK_CAPACITY];
+      create_label(pour, STACK_CAPACITY, "%s:%d", "for", nb);
+      create_label(endFor, STACK_CAPACITY, "%s:%d", "endfor", nb);
+      create_label(var, STACK_CAPACITY, "%s:%d", "ifor", nb);
+      create_label(varEnd, STACK_CAPACITY, "%s:%d", "iendfor", nb);
+      symbol_table* s = search_symbol_table($3);
+      if (s != NULL) {
+        if (s->desc[0] != INT_T) {
+          fprintf(stderr, "erreur de typage\n");
+          exit(EXIT_FAILURE);
+        }
+        strcpy(var, $3);
+      } else {
+        symbol_table* s = new_symbol_table(var);
+        s->desc[0] = INT_T;
+      }
+      s = new_symbol_table(varEnd);
+      s->desc[0] = INT_T;
+      printf("\tpop bx\n");
+      printf("\tstorew bx,var:%s\n", varEnd);
+      printf("\tpop bx\n");
+      printf("\tstorew bx,var:%s\n", var);
+      boucle[size_end] = pour;
+      varBoucle[size_end] = var;
+      boucleEnd[size_end] = endFor;
+      ++size_end;
+      printf(":%s\n", pour);
+      printf("\tloadw ax,var:%s\n", var);
+      printf("\tloadw bx,var:%s\n", varEnd);
+      printf("\tconst cx,%s\n", endFor);
+      printf("\tcmp ax,bx\n");
+      printf("\tjmpc cx\n");
+    } else {
+      fprintf(stderr, "erreur interne boucle for\n");
+      exit(EXIT_FAILURE);
+    }
   }
 ;
 comparaison:
@@ -469,7 +443,18 @@ boucleif:
   }
 ;
 expr :
-  NUMBER {
+  | ID {
+    symbol_table* s= search_symbol_table($1);
+    if (s == NULL) {
+      fprintf(stderr, "symbol not found\n");
+    } else {
+      printf("\tconst ax,var:%s\n", $1);
+      printf("\tloadw bx,ax\n");
+      printf("\tpush bx\n");
+      $$ = s->desc[0];
+    }
+  }
+  | NUMBER {
     printf("\tconst ax,%d\n", $1);
     printf("\tpush ax\n");
     $$ = INT_T; 
@@ -483,17 +468,6 @@ expr :
     printf("\tconst ax,0\n");
     printf("\tpush ax\n");
     $$ = BOOL_T;
-  }
-  | ID {
-    symbol_table* s= search_symbol_table($1);
-    if (s == NULL) {
-      fprintf(stderr, "symbol not found\n");
-    } else {
-      printf("\tconst ax,var:%s\n", $1);
-      printf("\tloadw bx,ax\n");
-      printf("\tpush bx\n");
-      $$ = s->desc[0];
-    }
   }
   | expr ADD expr {
     if ($1 == INT_T && $3 == INT_T) {
@@ -845,8 +819,8 @@ expr :
   }
 ;
 parameters :
-  parameters ID {
-    ids[size_ids] = $2;
+  ID parameters { 
+    ids[size_ids] = $1;
     ++size_ids;
   }
   | ID {
@@ -856,7 +830,7 @@ parameters :
 ;
 
 valeurs :
-  valeurs expr{
+  valeurs expr {
     values[size_values] = $2;
     ++size_values;
   }
