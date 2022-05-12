@@ -3,7 +3,7 @@ LEX=flex
 YACC=bison
 CC=gcc
 CFLAGS=-g -std=c11 -pedantic -Wall
-LDFLAGS=-lfl
+LDFLAGS=-ll
 # --nounput: ne g�n�re pas la fonction yyunput() inutile
 # --DYY_NO_INPUT: ne prend pas en compte la fonction input() inutile
 # -D_POSIX_SOURCE: d�clare la fonction fileno()
@@ -28,4 +28,4 @@ $(PROG).tab.c $(PROG).tab.h: $(PROG).y lex.yy.h
 	$(CC) -DYYDEBUG $(CFLAGS) $< -c
 
 clean:
-	-rm $(PROG) *.o lex.yy.* $(PROG).tab.* *.err *.output *.out *.dot
+	-rm $(PROG) *.o lex.yy.* $(PROG).tab.* *.err *.output *.out *.dot *.asm

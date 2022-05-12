@@ -15,7 +15,6 @@ ID [a-zA-Z]+[[:digit:]a-zA-Z]*
 %%
 [[:digit:]]+ {string_to_int(&yylval.integer, yytext); return NUMBER;}
 \\SET {return SET;}
-{ID} {yylval.id = strcpy_perso(yytext); return ID;}
 \\begin\{algo\} {return DEBUT;}
 \\end\{algo\} {return FIN;}
 \\SET {return SET;}
@@ -44,6 +43,10 @@ false {return FALSE;}
 \{
 \}
 ,
+\n
+\+ {return ADD;}
+- {return SUB;}
+{ID} {yylval.id = strcpy_perso(yytext); return ID;}
 [[:blank:]]
 .|\n {printf("%c", yytext[0]);}
 %%
