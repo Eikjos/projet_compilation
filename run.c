@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "stypes.h"
 #include "stable.h"
 
@@ -32,7 +34,7 @@ int main(int argc, char* argv[]) {
   }
   // OUVERTURE DU FICHIER POUR EXECUTER LA FONCTION
   char executablePath[BUFFER_SIZE];
-  sprintf(executablePath, "%sexecutable.asm", name);
+  sprintf(executablePath, "%s_main.asm", name);
   fd = open(executablePath, O_RDWR | O_CREAT , S_IRWXU);
   if (fd == -1) {
     fprintf(stderr, "executable - open()\n");
@@ -69,13 +71,11 @@ int main(int argc, char* argv[]) {
   printf("\tjmp ax\n");
   // retour de la fonction avec affichage du résultat
   printf(":fin_function\n");
-  printf("\tpop ax\n");
+  printf("\tcp ax,sp\n");
   printf("\tcallprintfd ax\n");
+  printf("\tconst ax,ral\n");
+  printf("\tcallprintfs ax\n");
   printf("\tend\n");
-  // déclaration de la pile
-  printf("\n:pile\n");
-  printf("@int 0\n");
-  printf("\n");
   // déclaration de la fonction (lecture du fichier)
   char buf[BUFFER_SIZE];
   while(fgets(buf, BUFFER_SIZE, stdin) != NULL) {
@@ -88,6 +88,12 @@ int main(int argc, char* argv[]) {
     printf("@int 0\n");
     s = s->next;
   }
+  printf(":ral\n");
+  printf("@string \"\\n\"\n");
+  // déclaration de la pile
+  printf(":pile\n");
+  printf("@int 0\n");
+  printf("\n");
 }
 
 // retourne le nom du fichier sans extension
@@ -97,4 +103,5 @@ void get_name(char* file, char* dest) {
     ++file;
     ++dest;
   }
+  *dest = '\0';
 }

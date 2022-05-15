@@ -164,7 +164,7 @@ params :
     s->desc[0] = INT_T;
     ++nb_params;
     printf("\tpop ax\n");
-    printf("\tconst bx,var:%s\n", $1);
+    printf("\tconst bx,varfunc:%s\n", $1);
     printf("\tstorew ax,bx\n");
   }
   | ID params {
@@ -178,20 +178,18 @@ params :
     s->desc[0] = INT_T;
     ++nb_params;
     printf("\tpop ax\n");
-    printf("\tconst bx,var:%s\n", $1);
+    printf("\tconst bx,varfunc:%s\n", $1);
     printf("\tstorew ax,bx\n");
   }
 ;
 
 lignes :
-  lignes '\n'
-  | '\n'
   | lignes FIN {
     symbol_table* s = get_symbol_table();
     printf("\n");
     while(s != NULL) {
       if (s->scope != FUNCTION) {
-      printf("varfunc:%s\n", s->name);
+      printf(":varfunc:%s\n", s->name);
       printf("@int 0\n");
       }
       s = s->next;
@@ -203,7 +201,7 @@ lignes :
     printf("\n");
     while(s != NULL) {
       if (s->scope != FUNCTION) {
-      printf("varfunc:%s\n", s->name);
+      printf(":varfunc:%s\n", s->name);
       printf("@int 0\n");
       }
       s = s->next;
@@ -227,9 +225,9 @@ lignes :
     
   }
   | lignes FIN_BOUCLE{
-    printf("\tloadw ax,var:%s\n", varBoucle[size_end - 1]);
+    printf("\tloadw ax,varfunc:%s\n", varBoucle[size_end - 1]);
     printf("\tadd ax,1\n");
-    printf("\tstorew ax,var:%s\n", varBoucle[size_end - 1]);
+    printf("\tstorew ax,varfunc:%s\n", varBoucle[size_end - 1]);
     printf("\tconst cx,%s\n", boucle[size_end - 1]);
     printf("\tjmp cx\n");
     printf(":%s\n", boucleEnd[size_end - 1]);
@@ -304,7 +302,7 @@ affectation:
               fprintf(stderr, "incompatible type\n");
               exit(EXIT_FAILURE);
             } 
-            printf("\tconst ax,var:%s\n", ids[i]);
+            printf("\tconst ax,varfunc:%s\n", ids[i]);
             printf("\tpop bx\n");
             printf("\tstorew bx,ax\n");
         } else {
@@ -312,7 +310,7 @@ affectation:
           s = new_symbol_table(ids[i]);
           s->desc[0] = values[i];
           s->scope = LOCAL_VARIABLE;
-          printf("\tconst ax,var:%s\n", ids[i]);
+          printf("\tconst ax,varfunc:%s\n", ids[i]);
           printf("\tpop bx\n");
           printf("\tstorew bx,ax\n");
         }
@@ -827,7 +825,24 @@ void yyerror(char const *s) {
   fprintf(stderr, "%s\n", s);
 }
 
-int main(void) {
+int main(int argc, char* argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "nombre d'argument incorrect\n");
+    exit(EXIT_FAILURE);
+  }
+  int fd = open(argv[1], O_RDONLY);
+  if (fd == -1) {
+    fprintf(stderr, "fichier - open()\n");
+    exit(EXIT_FAILURE);
+  }
+  if(dup2(fd, STDIN_FILENO) == -1) {
+    fprintf(stderr, "dup2()\n");
+    exit(EXIT_FAILURE);
+  }
+  if (close(fd) == -1) {
+    fprintf(stderr, "close()\n");
+    exit(EXIT_FAILURE);
+  }
   yyparse();
   return EXIT_SUCCESS;
 }

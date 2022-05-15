@@ -48,7 +48,7 @@ false {return FALSE;}
 - {return SUB;}
 {ID} {yylval.id = strcpy_perso(yytext); return ID;}
 [[:blank:]]
-.|\n {printf("%c", yytext[0]);}
+.|\n {}
 %%
 
 void string_to_int(int *r, const char *s) {
