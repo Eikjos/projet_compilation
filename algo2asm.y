@@ -79,15 +79,15 @@
 %token FIN
 %token FOR WHILE
 %token FIN_BOUCLE FIN_BOUCLE_WHILE
-%token IF ELSE FIN_IF
+%token ELSE FIN_IF
 %token TRUE FALSE
 %token RETURN 
 %token ACC_D ACC_F
 
 %type<t> expr
-%type<c> comparaison
+%type<t>condition
 %left OR AND
-%right NOT
+%right NOT IF
 %left EQ NEQ LE GRE LEQ GEQ
 %left MOD
 %left ADD SUB
@@ -135,7 +135,7 @@ function :
         exit(EXIT_FAILURE);
       }
       s->scope = FUNCTION;
-      s->nParams = nb_params; 
+      s->nParams = nb_params;
       char path[STACK_CAPACITY];
       create_label(path, STACK_CAPACITY, "%s.%s", $3, "asm");
       int fd = open(path, O_RDWR| O_CREAT, S_IRWXU);
@@ -161,6 +161,7 @@ params :
     }
     s = new_symbol_table($1);
     s->scope = GLOBAL_VARIABLE;
+    s->desc[0] = INT_T;
     ++nb_params;
     printf("\tpop ax\n");
     printf("\tconst bx,var:%s\n", $1);
@@ -174,6 +175,7 @@ params :
     }
     s = new_symbol_table($1);
     s->scope = GLOBAL_VARIABLE;
+    s->desc[0] = INT_T;
     ++nb_params;
     printf("\tpop ax\n");
     printf("\tconst bx,var:%s\n", $1);
@@ -185,80 +187,31 @@ lignes :
   lignes '\n'
   | '\n'
   | lignes FIN {
-  }
-  | FIN {
+    symbol_table* s = get_symbol_table();
+    printf("\n");
+    while(s != NULL) {
+      if (s->scope != FUNCTION) {
+      printf("varfunc:%s\n", s->name);
+      printf("@int 0\n");
+      }
+      s = s->next;
+    } 
     exit(EXIT_SUCCESS);
   }
-  | lignes SET ACC_D parameters ACC_F ACC_D valeurs ACC_F {
-    if (size_ids != size_values) {
-      fprintf(stderr, "invalid parameter\n");
-    } else {
-      for (int i = 0; i < size_ids; ++i) {
-        // si les expressions possèdent une erreur
-        if (values[i] != INT_T && values[i] != BOOL_T) {
-          fprintf(stderr, "il y a une erreur dans l'expression\n");
-          exit(EXIT_FAILURE);
-        }
-        symbol_table *s = search_symbol_table(ids[i]);
-        // le cas ou la variable existe déjà
-        if (s != NULL) {
-            if (s->desc[0] != values[i]) {
-              fprintf(stderr, "incompatible type\n");
-              exit(EXIT_FAILURE);
-            } 
-            printf("\tconst ax,var:%s\n", ids[i]);
-            printf("\tpop bx\n");
-            printf("\tstorew bx,ax\n");
-        } else {
-          // le cas où la variable n'existe pas
-          s = new_symbol_table(ids[i]);
-          s->desc[0] = values[i];
-          s->scope = LOCAL_VARIABLE;
-          printf("\tconst ax,var:%s\n", ids[i]);
-          printf("\tpop bx\n");
-          printf("\tstorew bx,ax\n");
-        }
+  | FIN {
+    symbol_table* s = get_symbol_table();
+    printf("\n");
+    while(s != NULL) {
+      if (s->scope != FUNCTION) {
+      printf("varfunc:%s\n", s->name);
+      printf("@int 0\n");
       }
-      size_ids = 0;
-      size_values = 0;
-    }
+      s = s->next;
+    } 
+    exit(EXIT_SUCCESS);
   }
-  | SET ACC_D parameters ACC_F ACC_D valeurs ACC_F {
-    if (size_ids != size_values) {
-      fprintf(stderr, "invalid parameter\n");
-    } else {
-      for (int i = 0; i < size_ids; ++i) {
-        // si les expressions possèdent une erreur
-        if (values[i] != INT_T && values[i] != BOOL_T) {
-          fprintf(stderr, "il y a une erreur dans l'expression\n");
-          exit(EXIT_FAILURE);
-        }
-        symbol_table *s = search_symbol_table(ids[i]);
-        // le cas ou la variable existe déjà
-        if (s != NULL) {
-            if (s->desc[0] != values[i]) {
-              fprintf(stderr, "incompatible type\n");
-              exit(EXIT_FAILURE);
-            } 
-            printf("\tconst ax,var:%s\n", ids[i]);
-            printf("\tpop bx\n");
-            printf("\tstorew bx,ax\n");
-        } else {
-          // le cas où la variable n'existe pas
-          s = new_symbol_table(ids[i]);
-          s->desc[0] = values[i];
-          s->scope = LOCAL_VARIABLE;
-          printf("\tconst ax,var:%s\n", ids[i]);
-          printf("\tpop bx\n");
-          printf("\tstorew bx,ax\n");
-        }
-      }
-      size_ids = 0;
-      size_values = 0;
-    }
-    size_ids = 0;
-    size_values = 0;
-  }
+  | lignes affectation {}
+  | affectation {}
   | lignes RETURN ACC_D expr ACC_F {
     if ($4 != INT_T && $4 != BOOL_T) {
       fprintf(stderr, "il y a une erreur dans l'expression retourné\n");
@@ -317,10 +270,10 @@ lignes :
     printf("\tconst ax,fin_function\n");
     printf("\tjmp ax\n");
   }
-  | lignes boucleWhile exprWhile {
+  | lignes boucleWhile {
 
   }
-  | boucleWhile exprWhile {
+  | boucleWhile {
 
   }
   | lignes FIN_BOUCLE_WHILE {
@@ -333,9 +286,44 @@ lignes :
     }
   }
 ;
-
+affectation:
+  SET ACC_D parameters ACC_F ACC_D valeurs ACC_F {
+    if (size_ids != size_values) {
+      fprintf(stderr, "invalid parameter\n");
+    } else {
+      for (int i = 0; i < size_ids; ++i) {
+        // si les expressions possèdent une erreur
+        if (values[i] != INT_T && values[i] != BOOL_T) {
+          fprintf(stderr, "il y a une erreur dans l'expression\n");
+          exit(EXIT_FAILURE);
+        }
+        symbol_table *s = search_symbol_table(ids[i]);
+        // le cas ou la variable existe déjà
+        if (s != NULL) {
+            if (s->desc[0] != values[i]) {
+              fprintf(stderr, "incompatible type\n");
+              exit(EXIT_FAILURE);
+            } 
+            printf("\tconst ax,var:%s\n", ids[i]);
+            printf("\tpop bx\n");
+            printf("\tstorew bx,ax\n");
+        } else {
+          // le cas où la variable n'existe pas
+          s = new_symbol_table(ids[i]);
+          s->desc[0] = values[i];
+          s->scope = LOCAL_VARIABLE;
+          printf("\tconst ax,var:%s\n", ids[i]);
+          printf("\tpop bx\n");
+          printf("\tstorew bx,ax\n");
+        }
+      }
+      size_ids = 0;
+      size_values = 0;
+    }
+  }
+;
 boucleWhile:
-  WHILE {
+  WHILE ACC_D condition ACC_F{
     int nb = new_label_number();
     char bwhile[STACK_CAPACITY];
     char endWhile[STACK_CAPACITY];
@@ -346,16 +334,14 @@ boucleWhile:
     ++size_endWhile;
     stackEndWhile[size_endWhile - 1] = endWhile;
     printf(":%s\n", stackWhile[size_while - 1]);
-  }
-;
-exprWhile:
-  | ACC_D expr ACC_F {
-      if ($2 == BOOL_T) {
-        printf("\tpop ax\n");
-        printf("\tconst cx,%s\n", stackEndWhile[size_endWhile - 1]);
-        printf("\tcmp ax,0\n");
-        printf("\tjmpc cx\n");
-      }
+    if ($3 == BOOL_T) {
+      printf("\tpop ax\n");
+      printf("\tconst cx,%s\n", stackEndWhile[size_endWhile - 1]);
+      printf("\tcmp ax,0\n");
+      printf("\tjmpc cx\n");
+    } else {
+      fprintf(stderr, "erreur de typage\n");
+    }
   }
 ;
 bouclefor:
@@ -384,16 +370,16 @@ bouclefor:
       s = new_symbol_table(varEnd);
       s->desc[0] = INT_T;
       printf("\tpop bx\n");
-      printf("\tstorew bx,var:%s\n", varEnd);
+      printf("\tstorew bx,varfunc:%s\n", varEnd);
       printf("\tpop bx\n");
-      printf("\tstorew bx,var:%s\n", var);
+      printf("\tstorew bx,varfunc:%s\n", var);
       boucle[size_end] = pour;
       varBoucle[size_end] = var;
       boucleEnd[size_end] = endFor;
       ++size_end;
       printf(":%s\n", pour);
-      printf("\tloadw ax,var:%s\n", var);
-      printf("\tloadw bx,var:%s\n", varEnd);
+      printf("\tloadw ax,varfunc:%s\n", var);
+      printf("\tloadw bx,varfunc:%s\n", varEnd);
       printf("\tconst cx,%s\n", endFor);
       printf("\tcmp ax,bx\n");
       printf("\tjmpc cx\n");
@@ -403,26 +389,9 @@ bouclefor:
     }
   }
 ;
-comparaison:
-  EQ {
-    $$ = EQ_T;
-  }
-  | LEQ {
-    $$ = LEQ_T;
-  }
-  | GRE {
-    $$ = GRE_T;
-  }
-  | GEQ {
-    $$ = GEQ_T;
-  }
-  | LE {
-    $$ = LE_T;
-  }
-;
 boucleif:
-  IF  expr {
-    if ($2 == BOOL_T) {
+  IF ACC_D condition ACC_F {
+    if ($3 == BOOL_T) {
       int nb = new_label_number();
       char fin[STACK_CAPACITY];
       char delse[STACK_CAPACITY];
@@ -437,7 +406,7 @@ boucleif:
       printf("\tcmp ax,0\n");
       printf("\tjmpc cx\n");
     } else {
-      fprintf(stderr, "erreur de typage\n");
+      fprintf(stderr, "il y a eu une erreur\n");
       exit(EXIT_FAILURE);
     }
   }
@@ -448,7 +417,7 @@ expr :
     if (s == NULL) {
       fprintf(stderr, "symbol not found\n");
     } else {
-      printf("\tconst ax,var:%s\n", $1);
+      printf("\tconst ax,varfunc:%s\n", $1);
       printf("\tloadw bx,ax\n");
       printf("\tpush bx\n");
       $$ = s->desc[0];
@@ -475,7 +444,7 @@ expr :
       printf("\tpop bx\n");
       printf("\tadd ax,bx\n");
       printf("\tpush ax\n");
-        $$ = INT_T;
+      $$ = INT_T;
     } else {
         if ($1 == BOOL_T || $3 == BOOL_T) {
           $$ = ERR_T;
@@ -492,7 +461,7 @@ expr :
       printf("\tpop bx\n");
       printf("\tmul ax,bx\n");
       printf("\tpush ax\n");
-        $$ = INT_T;
+      $$ = INT_T;
     } else {
       if ($1 == BOOL_T || $3 == BOOL_T) {
         $$ = ERR_T;
@@ -575,6 +544,7 @@ expr :
       printf("\tcallprintfs ax\n");
       printf("\tend\n");
       printf(":%s\n", ndiv0);
+      $$ = INT_T;
     } else {
       if ($1 == BOOL_T || $3 == BOOL_T) {
         $$ = ERR_T;
@@ -585,6 +555,8 @@ expr :
       }
     }
   }
+;
+condition :
   | expr EQ expr {
     char eq[STACK_CAPACITY];
     char feq[STACK_CAPACITY];
@@ -606,6 +578,7 @@ expr :
       printf("\tpush ax\n");
       printf(":%s\n", feq);
       $$ = BOOL_T;
+      fprintf(stderr, "EQ BOOL_T\n");
     } else if ($1 == BOOL_T && $3 == BOOL_T) {
       printf("\tpop ax\n");
       printf("\tpop bx\n");
@@ -621,13 +594,17 @@ expr :
       printf("\tpush ax\n");
       printf(":%s\n", feq);
       $$ = BOOL_T;
+      fprintf(stderr, "EQ Bed_T\n");
     } else {
       if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
         $$ = ERR_T;
+        fprintf(stderr, " BOOL_T\n");
       } else if ($1 != INT_T && $1 != BOOL_T) {
         $$ = $1;
+        fprintf(stderr, "EQ BT\n");
       } else {
         $$ = $3;
+        fprintf(stderr, "EQT\n");
       }
     }
   }
@@ -651,6 +628,7 @@ expr :
       printf("\tconst ax,1\n");
       printf("\tpush ax\n");
       printf(":%s\n", finf);
+      $$ = BOOL_T;
     } else {
       if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
         $$ = ERR_T;
@@ -681,6 +659,7 @@ expr :
       printf("\tconst ax,1\n");
       printf("\tpush ax\n");
       printf(":%s\n", fgeq);
+      $$ = BOOL_T;
     } else {
       if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
         $$ = ERR_T;
@@ -713,6 +692,7 @@ expr :
       printf("\tconst ax,1\n");
       printf("\tpush ax\n");
       printf(":%s\n", finf);
+      $$ = BOOL_T;
     } else {
       if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
         $$ = ERR_T;
@@ -745,6 +725,7 @@ expr :
       printf("\tconst ax,1\n");
       printf("\tpush ax\n");
       printf(":%s\n", fgeq);
+      $$ = BOOL_T;
     } else {
       if (($1 == INT_T && $3 == BOOL_T) || ($1 == BOOL_T && $3 == INT_T)) {
         $$ = ERR_T;

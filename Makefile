@@ -12,6 +12,8 @@ YACCOPTS=
 
 PROG=algo2asm
 
+all: $(PROG) run
+
 $(PROG): lex.yy.o $(PROG).tab.o stable.o
 	$(CC) $+ -o $@ $(LDFLAGS) 
 
@@ -23,9 +25,12 @@ lex.yy.h: $(PROG).l
 
 $(PROG).tab.c $(PROG).tab.h: $(PROG).y lex.yy.h
 	$(YACC) $(YACCOPTS) $< -d -v --graph
+
+run : run.o stable.o
+	$(CC) $+ -o $@ $(LDFLAGS)
 	
 %.o: %.c
 	$(CC) -DYYDEBUG $(CFLAGS) $< -c
 
 clean:
-	-rm $(PROG) *.o lex.yy.* $(PROG).tab.* *.err *.output *.out *.dot *.asm
+	-rm $(PROG) *.o lex.yy.* $(PROG).tab.* *.err *.output *.out *.dot *.asm run
