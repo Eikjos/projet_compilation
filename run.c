@@ -48,7 +48,6 @@ int main(int argc, char* argv[]) {
   }
   int tab[argc - 2];
   for (int i = 2; i < argc; ++i) {
-    printf("%s\n", argv[i]);
     if (sscanf(argv[i], "%d", &tab[i - 2]) != 1) {
       fprintf(stderr, "erreur lors de la conversion de string en int\n");
       exit(EXIT_FAILURE);
